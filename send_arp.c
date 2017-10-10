@@ -41,11 +41,15 @@ void make_arp(u_int8_t *packet, u_int8_t *src_mac, u_int8_t *dst_mac, u_int8_t *
     arp->hw_addr_size    = ETH_HW_ADDR_LEN;
     arp->prot_addr_size  = IP_ADDR_LEN;
     arp->op              = htons(opcode);
+    
+    if(dst_mac != NULL) memcpy(arp->targ_hw_addr, dst_mac, ETH_HW_ADDR_LEN);
+    else memcpy(arp->targ_hw_addr, "\xff\xff\xff\xff\xff\xff", ETH_HW_ADDR_LEN);
 
-    memcpy(arp->targ_hw_addr, dst_mac, ETH_HW_ADDR_LEN);
     memcpy(arp->src_hw_addr, src_mac, ETH_HW_ADDR_LEN);
 
-    memcpy(arp->rcpt_hw_addr, dst_mac, ETH_HW_ADDR_LEN);
+    if(dst_mac != NULL) memcpy(arp->rcpt_hw_addr, dst_mac, ETH_HW_ADDR_LEN);
+    else memcpy(arp->rcpt_hw_addr, "\x00\x00\x00\x00\x00\x00", ETH_HW_ADDR_LEN);
+
     memcpy(arp->sndr_hw_addr, src_mac, ETH_HW_ADDR_LEN);
     memcpy(arp->rcpt_ip_addr, dst_ip, IP_ADDR_LEN);
     memcpy(arp->sndr_ip_addr, src_ip, IP_ADDR_LEN);
@@ -65,11 +69,11 @@ int main(int argc, char *argv[]){
     u_int8_t attacker_mac[ETH_HW_ADDR_LEN];
     u_int8_t attacker_ip[IP_ADDR_LEN];
     u_int8_t broadcast_mac[6] = {0xff, 0xff, 0xff, 0xff, 0xff, 0xff};
-    u_int8_t packet[60];
     int length = 60;
 
-    const u_char *packet_recv;
-    struct arp_packet *arp;
+    const u_int8_t *packet_recv;
+    u_int8_t *packet=(u_int8_t*)malloc(sizeof(struct arp_packet));
+    struct arp_packet *arp=(struct arp_packet*)malloc(sizeof(struct arp_packet));
     struct ifreq ifr;
     int sock = socket(AF_INET, SOCK_DGRAM, 0);
 
@@ -97,7 +101,7 @@ int main(int argc, char *argv[]){
     printf("Attacker's MAC: %02x:%02x:%02x:%02x:%02x:%02x\n", attacker_mac[0], attacker_mac[1], attacker_mac[2], attacker_mac[3], attacker_mac[4], attacker_mac[5]);    
     printf("Attacker's IP :%d.%d.%d.%d\n", attacker_ip[0], attacker_ip[1], attacker_ip[2], attacker_ip[3]);  
 
-    make_arp(packet, attacker_mac, broadcast_mac, attacker_ip, sender_ip, 1); //arp broadcast
+    make_arp(packet, attacker_mac, NULL, attacker_ip, sender_ip, 1); //arp broadcast
     printf("arp broadcasted\n");
 
     if(pcap_sendpacket(handler, packet, length) != 0){
@@ -107,12 +111,16 @@ int main(int argc, char *argv[]){
     
     while(1){                                                                //get arp reply
         pcap_next_ex(handler, &header, &packet_recv);
-        arp = (struct arp_packet*)packet_recv;
-        if(ntohs(arp->ether_type) == ETHERTYPE_ARP && ntohs(arp->op) == 2) break;
+        arp = (struct arp_packet*)packet_recv;  
+        if(ntohs(arp->ether_type) != ETHERTYPE_ARP) continue;
+        if(ntohs(arp->op) != 2) continue;
+        if(memcmp(arp->sndr_ip_addr, sender_ip, IP_ADDR_LEN)) continue;
+        memcpy(sender_mac, arp->sndr_hw_addr, ETH_HW_ADDR_LEN);
+        return 1;
     }
+    
     printf("arp replied\n");
     
-    memcpy(sender_mac, arp->sndr_hw_addr, ETH_HW_ADDR_LEN);
     printf("Sender's MAC ADDR : ");
     printf("%02x:%02x:%02x:%02x:%02x:%02x\n", sender_mac[0], sender_mac[1], sender_mac[2], sender_mac[3], sender_mac[4], sender_mac[5]);
 
