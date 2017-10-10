@@ -38,8 +38,8 @@ void make_arp(u_int8_t *packet, u_int8_t *src_mac, u_int8_t *dst_mac, u_int8_t *
     arp->ether_type      = htons(0x0806);
     arp->hw_type         = htons(1);
     arp->prot_type       = htons(0x0800);
-    arp->hw_addr_size    = ETH_HW_ADDR_LEN;
-    arp->prot_addr_size  = IP_ADDR_LEN;
+    arp->hw_addr_size    = 6;
+    arp->prot_addr_size  = 4;
     arp->op              = htons(opcode);
     
     if(dst_mac != NULL) memcpy(arp->targ_hw_addr, dst_mac, ETH_HW_ADDR_LEN);
@@ -68,8 +68,7 @@ int main(int argc, char *argv[]){
     u_int8_t target_ip[IP_ADDR_LEN];
     u_int8_t attacker_mac[ETH_HW_ADDR_LEN];
     u_int8_t attacker_ip[IP_ADDR_LEN];
-    u_int8_t broadcast_mac[6] = {0xff, 0xff, 0xff, 0xff, 0xff, 0xff};
-    int length = 60;
+    int length = sizeof(struct arp_packet);
 
     const u_int8_t *packet_recv;
     u_int8_t *packet=(u_int8_t*)malloc(sizeof(struct arp_packet));
@@ -79,7 +78,7 @@ int main(int argc, char *argv[]){
 
     const char *name = "Kim Subong";
     printf("[sub26_2017]send_arp[%s]\n", name);
-    
+    printf("length : %d\n", length); 
     handler = pcap_open_live(interface, BUFSIZ, 1, 1000, errbuf);
     if(handler == NULL){
         printf("%s\n", errbuf);
@@ -100,16 +99,29 @@ int main(int argc, char *argv[]){
     //print mac, ip
     printf("Attacker's MAC: %02x:%02x:%02x:%02x:%02x:%02x\n", attacker_mac[0], attacker_mac[1], attacker_mac[2], attacker_mac[3], attacker_mac[4], attacker_mac[5]);    
     printf("Attacker's IP :%d.%d.%d.%d\n", attacker_ip[0], attacker_ip[1], attacker_ip[2], attacker_ip[3]);  
-
+    
     make_arp(packet, attacker_mac, NULL, attacker_ip, sender_ip, 1); //arp broadcast
-    printf("arp broadcasted\n");
-
+    
+    //check my packet
+    
+    
+    for(int i = 0; i<6;i++) printf(" %02x", packet[i]); printf("\n");
+    for(int i = 6; i<12;i++) printf(" %02x", packet[i]); printf("\n");
+    printf("flag: ");for(int i = 12;i<22;i++) printf(" %02x", packet[i]);printf("\n"); 
+    printf("sender mac: ");for(int i = 22; i<28;i++) printf(" %02x", packet[i]); printf("\n");
+    printf("sender ip: ");for(int i = 28; i<32;i++) printf(" %d", packet[i]); printf("\n");
+    printf("target mac: ");for(int i = 32; i<38;i++) printf(" %02x", packet[i]); printf("\n");
+    printf("target ip: ");for(int i = 38; i<42;i++) printf(" %d", packet[i]);
+    
+    printf("\narp broadcasted\n");
+    
     if(pcap_sendpacket(handler, packet, length) != 0){
-        printf("\nError sending the packet\n");
+        printf("\nError Sending the packet\n");
         return -1;
     }
-    
+
     while(1){                                                                //get arp reply
+        printf("!");
         pcap_next_ex(handler, &header, &packet_recv);
         arp = (struct arp_packet*)packet_recv;  
         if(ntohs(arp->ether_type) != ETHERTYPE_ARP) continue;
