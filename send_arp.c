@@ -89,12 +89,13 @@ int main(int argc, char *argv[]){
     inet_pton(AF_INET, argv[3], target_ip);
     
     //get mac, ip of attacker
+    
     strcpy(ifr.ifr_name, interface);
-    if(ioctl(sock, SIOCGIFHWADDR, &ifr) == 0 && ioctl(sock, SIOCGIFADDR, &ifr) == 0){
-        for(int i = 0;i<6;i++) attacker_mac[i] = ifr.ifr_hwaddr.sa_data[i];
-        memcpy(attacker_ip, &((struct sockaddr_in *)&ifr.ifr_addr)->sin_addr, IP_ADDR_LEN);
-        close(sock);
-    }
+
+    if(ioctl(sock, SIOCGIFHWADDR, &ifr) == 0) for(int i = 0;i<6;i++) attacker_mac[i] = ifr.ifr_hwaddr.sa_data[i];
+    if(ioctl(sock, SIOCGIFADDR, &ifr) == 0) memcpy(attacker_ip, &((struct sockaddr_in *)&ifr.ifr_addr)->sin_addr, IP_ADDR_LEN);
+
+    close(sock);
     
     //print mac, ip
     printf("Attacker's MAC: %02x:%02x:%02x:%02x:%02x:%02x\n", attacker_mac[0], attacker_mac[1], attacker_mac[2], attacker_mac[3], attacker_mac[4], attacker_mac[5]);    
